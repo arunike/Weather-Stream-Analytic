@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-
-message Report{
-    string date = 1;
-    double degrees = 2;
-}

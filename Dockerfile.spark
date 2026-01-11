@@ -1,0 +1,11 @@
+FROM apache/spark:3.5.0
+
+USER root
+
+# Install Python dependencies for the worker/driver
+RUN pip install redis psycopg2-binary kafka-python pyspark scikit-learn "numpy<2.0.0" delta-spark==3.0.0
+
+WORKDIR /app
+
+# We need to copy source code, but volume mount in compose handles it for dev
+CMD ["python3", "src/detector/main.py"]

@@ -1,18 +1,101 @@
-# Weather Stream Analytics
+# Enterprise Real-Time Fraud Detection Platform
 
-## Description
-This project demonstrates a practical application of Kafka for real-time data streaming and processing encapsulated within a Docker environment. The primary objective is to simulate handling daily weather data, focusing on key Kafka functionalities and Python scripting.
+An enterprise-grade streaming analytics platform designed to detect payment fraud in real-time using **Machine Learning**, **Geo-Velocity Analysis**, and a **Data Lakehouse Architecture**.
 
-### Data Generation and Streaming
-A Python script functions as a Kafka producer, simulating the generation of daily weather data (e.g., maximum temperatures) for a specific location.
-This weather data is streamed into a Kafka topic, configured with multiple partitions to support distributed data handling and scalability.
+## 🏗️ Architecture
 
-### Data Consumption and Processing
-Various Python consumer scripts are designed to subscribe to the Kafka topic and process the incoming weather data:
-A debug script displays the weather data stream in a human-readable format, aiding in troubleshooting and verification.
-A more complex consumer script calculates statistical summaries (such as average temperatures) from the weather data. It ensures data integrity and consistency by implementing mechanisms to prevent duplication and guarantee that each data point is processed exactly once. The results are outputted as JSON files, suitable for further analysis or visualization.
+This system uses a **Lambda Architecture** approach to handle both real-time alerts and long-term data archival.
 
-### Key Technologies
-- Kafka: Utilized for setting up a robust streaming platform.
-- Python: Scripts are written in Python for producing and consuming data, as well as for data processing and potentially visualization.
-- Docker: Ensures a consistent and isolated environment, facilitating easy setup and deployment.
+```mermaid
+graph TD
+    subgraph "Ingestion Layer"
+        Gen[Transaction Generator] -->|JSON Stream (50+ TPS)| Kafka[Apache Kafka]
+    end
+
+    subgraph "Processing Layer (Spark Structured Streaming)"
+        Kafka -->|Subscribe| Spark[Spark Fraud Detector]
+        Spark <-->|State (Last Location)| Redis[(Redis)]
+        Spark -->|Model Inference| ML[Isolation Forest Model]
+    end
+
+    subgraph "Storage Layer (Lakehouse + OLTP)"
+        Spark -->|Hot Path (Alerts)| Postgres[(PostgreSQL)]
+        Spark -->|Cold Path (Delta Tables)| MinIO[(MinIO / S3)]
+    end
+
+    subgraph "Serving & Monitoring"
+        Postgres <-->|Read Alerts / Write Feedback| Dash[Streamlit Dashboard]
+        Dash -->|User Feedback Loop| Postgres
+        Prom[Prometheus] -->|Scrape Metrics| Spark
+        Grafana[Grafana] -->|Visualize| Prom
+    end
+```
+
+## 🚀 Key Features
+
+*   **Real-Time Anomaly Detection**:
+    *   **ML-Based**: Uses `Isolation Forest` (trained on historical patterns) to flag statistical outliers in real-time.
+    *   **Rule-Based**: instantly detects "Impossible Travel" (speed > 800km/h) and "High Value" transactions.
+*   **Data Lakehouse Architecture**:
+    *   Uses **MinIO** as an S3-compatible object store.
+    *   Writes data in **Delta Lake** format (`delta-io`) for ACID transactions and time-travel capabilities on the data lake.
+*   **Human-in-the-Loop Feedback**:
+    *   Interactive Dashboard allows analysts to mark alerts as "True Fraud" or "False Positive".
+    *   Feedback is persisted to PostgreSQL to retrain and improve the ML model in future cycles.
+*   **Geospatial Visualization**:
+    *   Live heatmap of global fraud attempts.
+*   **Observability**:
+    *   Integrated **Prometheus** and **Grafana** for monitoring system health and throughput.
+
+## 🛠️ Tech Stack
+
+*   **Streaming Engine**: Apache Spark 3.5 (Structured Streaming)
+*   **Message Broker**: Apache Kafka
+*   **Storage (Hot)**: PostgreSQL 15, Redis 7
+*   **Storage (Cold/Lake)**: MinIO (S3), Delta Lake
+*   **ML Framework**: Scikit-Learn (Isolation Forest)
+*   **Visualization**: Streamlit, Plotly
+*   **Monitoring**: Prometheus, Grafana
+*   **Containerization**: Docker, Docker Compose
+
+## ⚡ Quick Start
+
+### Prerequisites
+*   Docker Desktop (4GB+ RAM recommended)
+
+### 1. Launch the Cluster
+```bash
+docker compose up --build -d
+```
+*Wait ~2-3 minutes for all services (Spark, Kafka, MinIO) to initialize.*
+
+### 2. Access Interfaces
+
+| Service | URL | Credentials | Description |
+| :--- | :--- | :--- | :--- |
+| **Fraud Dashboard** | [http://localhost:8501](http://localhost:8501) | *None* | Analyst UI for alerts & feedback |
+| **Data Lake (MinIO)** | [http://localhost:9001](http://localhost:9001) | `minioadmin` / `minioadmin` | View raw Delta Lake tables |
+| **Grafana** | [http://localhost:3000](http://localhost:3000) | `admin` / `admin` | System metrics & monitoring |
+
+### 3. Verify the Pipeline
+1.  **Dashboard**: You should see alerts appearing live.
+2.  **Feedback**: Click "✅ True Fraud" on an alert.
+3.  **Data Lake**: Log into MinIO, check `lake/transactions` bucket to see Parquet/Delta files.
+
+## 📂 Project Structure
+
+```
+├── docker-compose.yml       # Orchestrates 10+ microservices
+├── src/
+│   ├── generator/           # High-throughput transaction simulator
+│   ├── detector/            # Spark Streaming job (Delta + ML + Kafka)
+│   ├── dashboard/           # Streamlit UI with SQL integration
+│   └── model/               # ML Training scripts
+├── config/                  # Prometheus & Grafana configs
+└── Dockerfile.spark         # Custom Spark image with Delta/AWS libs
+```
+
+## 📈 Future Roadmap
+*   [ ] **CI/CD**: Add GitHub Actions for automated testing.
+*   [ ] **Kubernetes**: Migrate from Docker Compose to Helm Charts.
+*   [ ] **Airflow**: Orchestrate daily model re-training using the feedback data.
