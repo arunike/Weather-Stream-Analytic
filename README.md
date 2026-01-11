@@ -75,6 +75,7 @@ docker compose up --build -d
 | :--- | :--- | :--- | :--- |
 | **Fraud Dashboard** | [http://localhost:8501](http://localhost:8501) | *None* | Analyst UI for alerts & feedback |
 | **Data Lake (MinIO)** | [http://localhost:9001](http://localhost:9001) | `minioadmin` / `minioadmin` | View raw Delta Lake tables |
+| **Airflow (MLOps)** | [http://localhost:8081](http://localhost:8081) | `admin` / `admin` | Orchestrate model retraining |
 | **Grafana** | [http://localhost:3000](http://localhost:3000) | `admin` / `admin` | System metrics & monitoring |
 
 ### 3. Verify the Pipeline
@@ -82,20 +83,36 @@ docker compose up --build -d
 2.  **Feedback**: Click "✅ True Fraud" on an alert.
 3.  **Data Lake**: Log into MinIO, check `lake/transactions` bucket to see Parquet/Delta files.
 
+### 4. Kubernetes Deployment (Production) ☸️
+You can deploy the entire stack to a local Kubernetes cluster (like Docker Desktop or Minikube) using the included Helm Chart.
+
+**Prerequisites**: `helm`, `kubectl`.
+
+1.  **Deploy with Helm**:
+    ```bash
+    ./k8s/deploy.sh
+    ```
+2.  **Verify**:
+    ```bash
+    kubectl get pods
+    kubectl port-forward svc/fraud-stack-dashboard 8501:8501
+    ```
+3.  **Stop & Cleanup**:
+    ```bash
+    helm uninstall fraud-stack
+    ```
+    *Note: To completely stop all K8s system pods (like `kube-apiserver`), go to Docker Desktop Settings -> Kubernetes -> Uncheck "Enable Kubernetes".*
+
 ## 📂 Project Structure
 
 ```
-├── docker-compose.yml       # Orchestrates 10+ microservices
+├── docker-compose.yml       # Dev Environment (10+ microservices)
 ├── src/
 │   ├── generator/           # High-throughput transaction simulator
 │   ├── detector/            # Spark Streaming job (Delta + ML + Kafka)
 │   ├── dashboard/           # Streamlit UI with SQL integration
-│   └── model/               # ML Training scripts
-├── config/                  # Prometheus & Grafana configs
+│   └── model/               # Airflow Retraining Scripts
+├── dags/                    # Airflow DAGs
+├── k8s/                     # Helm Charts & Kubernetes Manifests
 └── Dockerfile.spark         # Custom Spark image with Delta/AWS libs
 ```
-
-## 📈 Future Roadmap
-*   [ ] **CI/CD**: Add GitHub Actions for automated testing.
-*   [ ] **Kubernetes**: Migrate from Docker Compose to Helm Charts.
-*   [ ] **Airflow**: Orchestrate daily model re-training using the feedback data.
