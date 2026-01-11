@@ -164,6 +164,87 @@ services:
       exit 0;
       "
 
+  # --- AIRFLOW (MLOPS) SERVICES ---
+  postgres-airflow:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+
+  airflow-init:
+    image: apache/airflow:2.9.0
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    command: version
+    depends_on:
+      - postgres-airflow
+    entrypoint: >
+      /bin/bash -c "
+      airflow db init &&
+      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com
+      "
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    restart: always
+    depends_on:
+      postgres-airflow:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./logs:/opt/airflow/logs
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 5
+    command: webserver
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    restart: always
+    depends_on:
+      postgres-airflow:
+        condition: service_started
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      # Env vars for our scripts
+      - POSTGRES_HOST=postgres
+      - POSTGRES_DB=fraud_detection
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - ./logs:/opt/airflow/logs
+    command: scheduler
+
 volumes:
   postgres_data:
   minio_data:
+  postgres_airflow_data:
