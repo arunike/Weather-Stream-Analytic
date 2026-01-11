@@ -9,25 +9,25 @@ This system uses a **Lambda Architecture** approach to handle both real-time ale
 ```mermaid
 graph TD
     subgraph "Ingestion Layer"
-        Gen[Transaction Generator] -->|JSON Stream (50+ TPS)| Kafka[Apache Kafka]
+        Gen["Transaction Generator"] -->|"JSON Stream (50+ TPS)"| Kafka["Apache Kafka"]
     end
 
     subgraph "Processing Layer (Spark Structured Streaming)"
-        Kafka -->|Subscribe| Spark[Spark Fraud Detector]
-        Spark <-->|State (Last Location)| Redis[(Redis)]
-        Spark -->|Model Inference| ML[Isolation Forest Model]
+        Kafka -->|Subscribe| Spark["Spark Fraud Detector"]
+        Spark <-->|"State (Last Location)"| Redis[("Redis")]
+        Spark -->|"Model Inference"| ML["Isolation Forest Model"]
     end
 
     subgraph "Storage Layer (Lakehouse + OLTP)"
-        Spark -->|Hot Path (Alerts)| Postgres[(PostgreSQL)]
-        Spark -->|Cold Path (Delta Tables)| MinIO[(MinIO / S3)]
+        Spark -->|"Hot Path (Alerts)"| Postgres[("PostgreSQL")]
+        Spark -->|"Cold Path (Delta Tables)"| MinIO[("MinIO / S3")]
     end
 
     subgraph "Serving & Monitoring"
-        Postgres <-->|Read Alerts / Write Feedback| Dash[Streamlit Dashboard]
-        Dash -->|User Feedback Loop| Postgres
-        Prom[Prometheus] -->|Scrape Metrics| Spark
-        Grafana[Grafana] -->|Visualize| Prom
+        Postgres <-->|"Read Alerts / Write Feedback"| Dash["Streamlit Dashboard"]
+        Dash -->|"User Feedback Loop"| Postgres
+        Prom["Prometheus"] -->|"Scrape Metrics"| Spark
+        Grafana["Grafana"] -->|Visualize| Prom
     end
 ```
 
