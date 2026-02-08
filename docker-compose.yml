@@ -76,53 +76,8 @@ services:
       - spark-master
 
   # ---------------------------
-  # Custom Services
+  # Monitoring
   # ---------------------------
-  # will use a shared base image or simply python images for these
-  transaction-generator:
-    build: 
-      context: .
-      dockerfile: Dockerfile.python  # We will create this
-    command: python src/generator/main.py
-    volumes:
-      - .:/app
-    depends_on:
-      - kafka
-
-  fraud-detector:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark # We will create this
-    command: >
-      /opt/spark/bin/spark-submit 
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,io.delta:delta-spark_2.12:3.0.0,org.apache.hadoop:hadoop-aws:3.3.4
-      src/detector/main.py
-    volumes:
-      - .:/app
-    environment:
-      - SPARK_MASTER=spark://spark-master:7077
-    depends_on:
-      - kafka
-      - redis
-      - postgres
-      - spark-master
-
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile.dashboard
-    ports:
-      - "8501:8501"
-    volumes:
-      - .:/app
-    environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=fraud_detection
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-    depends_on:
-      - postgres
-
   prometheus:
     image: prom/prometheus:latest
     volumes:

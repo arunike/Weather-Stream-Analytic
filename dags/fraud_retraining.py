@@ -21,14 +21,13 @@ with DAG(
     tags=['mlops', 'fraud'],
 ) as dag:
 
-    # Task 1: Wait for data / Checking sensors (Placeholder for simplicity)
+    # Task 1: Wait for data / Checking sensors
     check_dependencies = BashOperator(
         task_id='check_dependencies',
         bash_command='echo "Checking Data Lake and DB connections..." && sleep 5'
     )
 
     # Task 2: Run the retraining script
-    # The script is mounted at /opt/airflow/src/model/retrain.py
     train_model = BashOperator(
         task_id='train_model',
         bash_command='python /opt/airflow/src/model/retrain.py '

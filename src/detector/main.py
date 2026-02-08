@@ -46,7 +46,6 @@ def get_postgres_connection():
     )
 
 def setup_postgres():
-    """Ensure the alerts table exists."""
     try:
         conn = get_postgres_connection()
         cur = conn.cursor()
@@ -71,7 +70,6 @@ def setup_postgres():
         print(f"Error initializing Postgres: {e}")
 
 def haversine(lat1, lon1, lat2, lon2):
-    """Calculate distance between two points in km."""
     R = 6371  # Earth radius in km
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
@@ -82,9 +80,6 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * c
 
 def process_batch(df, epoch_id):
-    """
-    Process a batch of transactions.
-    """
     transactions = df.collect()
     if not transactions:
         return

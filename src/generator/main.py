@@ -13,10 +13,6 @@ TOPIC = 'transactions'
 fake = Faker()
 
 def create_transaction():
-    """
-    Generates a synthetic transaction.
-    Occasionally injects 'fraud' patterns (e.g., high speed travel).
-    """
     # Simulate a user from a limited set to allow 'history' to build up
     user_id = random.randint(1, 100)
     

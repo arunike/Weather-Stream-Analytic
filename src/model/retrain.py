@@ -24,7 +24,6 @@ def get_db_engine():
     return create_engine(f'postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}/{POSTGRES_DB}')
 
 def load_feedback_data():
-    """Load labeled data from Postgres (Feedback Loop)."""
     print("Loading feedback data from Postgres...")
     engine = get_db_engine()
     query = "SELECT amount, lat, lon, feedback FROM fraud_alerts WHERE feedback IS NOT NULL"
@@ -32,7 +31,6 @@ def load_feedback_data():
     return df
 
 def load_lake_data():
-    """Load raw historical data from MinIO (Data Lake)."""
     print("Loading historical data from MinIO...")
     # Using s3fs to read parquet files directly from MinIO
     fs = s3fs.S3FileSystem(
