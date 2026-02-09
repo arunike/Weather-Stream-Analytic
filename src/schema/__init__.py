@@ -1,1 +1,0 @@
-# Schema management and validation

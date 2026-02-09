@@ -1,205 +1,41 @@
+version: '3.8'
+
 services:
-  # ---------------------------
-  # Message Broker: Kafka
-  # ---------------------------
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+  web:
+    build: .
+    command: sh /app/entrypoint.sh
+    volumes:
+      - .:/app
     ports:
-      - "2181:2181"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
+      - "8000:8000"
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=django-insecure-restored-key
+      - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     depends_on:
-      - zookeeper
-    ports:
-      - "29092:29092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      - redis
 
-  # ---------------------------
-  # State Store: Redis
-  # ---------------------------
+  celery_worker:
+    build: .
+    command: celery -A core worker -l info
+    volumes:
+      - .:/app
+    environment:
+      - DEBUG=1
+      - SECRET_KEY=django-insecure-restored-key
+      - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - redis
+
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     ports:
       - "6379:6379"
-
-  # ---------------------------
-  # Storage: PostgreSQL
-  # ---------------------------
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: fraud_detection
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  # ---------------------------
-  # Processing: Spark
-  # ---------------------------
-  spark-master:
-    image: apache/spark:3.5.0
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
-    environment:
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    ports:
-      - "8080:8080"
-      - "7077:7077"
-
-  spark-worker:
-    image: apache/spark:3.5.0
-    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    environment:
-      - SPARK_WORKER_MEMORY=1G
-      - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    depends_on:
-      - spark-master
-
-  # ---------------------------
-  # Monitoring
-  # ---------------------------
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
-      - "9090:9090"
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    depends_on:
-      - prometheus
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-
-  # Helper to create the default bucket
-  minio-create:
-    image: minio/mc:latest
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      until (/usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin) do echo '...waiting...' && sleep 1; done;
-      /usr/bin/mc mb myminio/lake;
-      exit 0;
-      "
-
-  # --- AIRFLOW (MLOPS) SERVICES ---
-  postgres-airflow:
-    image: postgres:13
-    environment:
-      - POSTGRES_USER=airflow
-      - POSTGRES_PASSWORD=airflow
-      - POSTGRES_DB=airflow
-    volumes:
-      - postgres_airflow_data:/var/lib/postgresql/data
-
-  airflow-init:
-    image: apache/airflow:2.9.0
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    command: version
-    depends_on:
-      - postgres-airflow
-    entrypoint: >
-      /bin/bash -c "
-      airflow db init &&
-      airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com
-      "
-
-  airflow-webserver:
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
-    restart: always
-    depends_on:
-      postgres-airflow:
-        condition: service_started
-      airflow-init:
-        condition: service_completed_successfully
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    ports:
-      - "8081:8080"
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./src:/opt/airflow/src
-      - ./logs:/opt/airflow/logs
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 30s
-      retries: 5
-    command: webserver
-
-  airflow-scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
-    restart: always
-    depends_on:
-      postgres-airflow:
-        condition: service_started
-      airflow-init:
-        condition: service_completed_successfully
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      # Env vars for our scripts
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=fraud_detection
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./src:/opt/airflow/src
-      - ./logs:/opt/airflow/logs
-    command: scheduler
-
-volumes:
-  postgres_data:
-  minio_data:
-  postgres_airflow_data:
